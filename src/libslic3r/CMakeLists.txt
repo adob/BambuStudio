@@ -52,6 +52,7 @@ set(lisbslic3r_sources
     Color.hpp
     Config.cpp
     Config.hpp
+    ContourZ.cpp
     CurveAnalyzer.cpp
     CurveAnalyzer.hpp
     CutUtils.cpp

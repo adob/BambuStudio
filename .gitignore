@@ -28,3 +28,4 @@ doc/
 **/process_full/
 **/machine_full/
 **/filament_full/
+**/.cache/*
