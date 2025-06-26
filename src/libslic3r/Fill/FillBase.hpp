@@ -122,6 +122,7 @@ public:
 
     // BBS: all no overlap expolygons in same layer
     ExPolygons  no_overlap_expolygons;
+    bool dont_alternate_fill_direction = false;
 
 public:
     virtual ~Fill() {}

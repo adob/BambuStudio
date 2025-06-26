@@ -1,7 +1,6 @@
 #include <assert.h>
 #include <cmath>
 #include <cstddef>
-#include <ostream>
 #include <stdio.h>
 #include <memory>
 
@@ -12,7 +11,6 @@
 #include "../PrintConfig.hpp"
 #include "../Surface.hpp"
 
-#include "Exception.hpp"
 #include "ExtrusionEntity.hpp"
 #include "FillBase.hpp"
 #include "FillRectilinear.hpp"
@@ -24,7 +22,6 @@
 #include "MultiPoint.hpp"
 #include "Point.hpp"
 #include "Polyline.hpp"
-#include "SLA/IndexedMesh.hpp"
 #include "libslic3r.h"
 
 #define NARROW_INFILL_AREA_THRESHOLD 3
@@ -570,6 +567,7 @@ void Layer::make_fills(FillAdaptive::Octree* adaptive_fill_octree, FillAdaptive:
         std::unique_ptr<Fill> f = std::unique_ptr<Fill>(Fill::new_from_type(surface_fill.params.pattern));
         f->set_bounding_box(bbox);
         f->layer_id = this->id();
+		f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
         f->z 		= this->print_z;
         f->angle 	= surface_fill.params.angle;
         f->adapt_fill_octree = (surface_fill.params.pattern == ipSupportCubic) ? support_fill_octree : adaptive_fill_octree;
@@ -766,6 +764,7 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
 		std::unique_ptr<Fill> f = std::unique_ptr<Fill>(Fill::new_from_type(surface_fill.params.pattern));
 		f->set_bounding_box(bbox);
 		f->layer_id = this->id() - this->object()->get_layer(0)->id(); // We need to subtract raft layers.
+		f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
 		f->z = this->print_z;
 		f->angle = surface_fill.params.angle;
 		f->adapt_fill_octree = (surface_fill.params.pattern == ipSupportCubic) ? support_fill_octree : adaptive_fill_octree;
@@ -820,7 +819,7 @@ Polylines Layer::generate_sparse_infill_polylines_for_anchoring(FillAdaptive::Oc
 
 
 // Create ironing extrusions over top surfaces.
-void Layer::make_ironing(Layer *prev_layer)
+void Layer::make_ironing()
 {
 	// LayerRegion::slices contains surfaces marked with SurfaceType.
 	// Here we want to collect top surfaces extruded with the same extruder.
@@ -937,6 +936,7 @@ void Layer::make_ironing(Layer *prev_layer)
     std::unique_ptr<Fill> f         = std::unique_ptr<Fill>(Fill::new_from_type(f_pattern));
     f->set_bounding_box(this->object()->bounding_box());
     f->layer_id = this->id();
+	f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
     f->z        = this->print_z;
     f->overlap  = 0;
 	for (size_t i = 0; i < by_extruder.size();) {
@@ -949,6 +949,7 @@ void Layer::make_ironing(Layer *prev_layer)
             f = std::unique_ptr<Fill>(Fill::new_from_type(f_pattern));
             f->set_bounding_box(this->object()->bounding_box());
             f->layer_id = this->id();
+			f->dont_alternate_fill_direction = this->object()->config().zaa_dont_alternate_fill_direction;
             f->z        = this->print_z;
             f->overlap  = 0;
 		}
@@ -1021,11 +1022,10 @@ void Layer::make_ironing(Layer *prev_layer)
 			}
 
 			// ironing expansion
+			Layer *prev_layer = this->lower_layer;
 			if (prev_layer != nullptr && ironing_params.expansion > 0) {
-				printf("doing ironing expansion %p %f\n", prev_layer, ironing_params.expansion);
 				double ironing_areas_offset = ironing_params.inset == 0 ? float(scale_(0.5 * nozzle_dmr)) : scale_(ironing_params.inset);
 				double expansion_mm = ironing_params.expansion;
-				// double expansion_mm = .2;
 
 				// remove small ironing area
 				//double min_size_mm = 1;
@@ -1034,18 +1034,9 @@ void Layer::make_ironing(Layer *prev_layer)
 
 				ExPolygons ironing_areas_expanded = offset_ex(ironing_areas, scale_(expansion_mm));
 
-				//apply inset
-				// ironing_areas = offset_ex(ironing_areas, -ironing_areas_offset);
-
 				Polygons expansion_area = diff(offset_ex(prev_layer->lslices, -ironing_areas_offset), offset_ex(this->lslices, -ironing_areas_offset));
-				// Polygons expansion_area = offset(prev_layer->lslices, -ironing_areas_offset);
-
 				ExPolygons expanded_area = intersection_ex(ironing_areas_expanded, expansion_area);
-				// ironing_areas = expanded_area;
 				ironing_areas = union_ex(ironing_areas, expanded_area);
-
-				//ExPolygons({ironing_areas, expanded_area}
-				//Geometry::convex_hull();
 			}
 
 		}
